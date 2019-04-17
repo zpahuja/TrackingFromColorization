@@ -1,0 +1,15 @@
+data_dir:
+  kinetics: /data/zubin/videos/kinetics
+  davis: /data/zubin/videos/DAVIS/
+
+mode:
+    train:
+        batch_size: 32
+    eval:
+        batch_size: 32
+
+hparams:
+    data_format: channels_last
+    weight_decay: 0.0001
+    batch_norm_decay: 0.997
+    batch_norm_epsilon: 0.001
