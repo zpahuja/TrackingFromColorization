@@ -27,9 +27,11 @@ python3 scripts/cluster.py -k 16 -n 1000 -o out/centroids/centroids_16k_cifar10_
 
 * Colorization
 ```
-python3 scripts/colorization/train.py --model-dir models/colorizer
-tensorboard --host 0.0.0.0 --port 6006 --logdir models
+python3 scripts/colorization/train.py --model-dir out/models/colorization
+tensorboard --host 127.0.0.1 --port 6016 --logdir out/models
 ```
+
+try gpu training TODO
 
 * CIFAR-10
 ```

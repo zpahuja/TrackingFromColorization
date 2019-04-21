@@ -1,5 +1,6 @@
 """
 Download and preprocess videos for Kinetics dataset from Youtube.
+
 Requires youtube-dl and ffmpeg.
 """
 import os
@@ -11,8 +12,8 @@ import ujson as json
 
 sys.path.append('.')
 sys.path.append('/home/nfs/zpahuja2/tracking_from_colorization')  # vision clus
-from colorizer.config import Config
 
+from colorizer.config import Config
 
 def main(args):
     logging.info('args: %s', args)

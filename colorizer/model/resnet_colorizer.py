@@ -17,6 +17,8 @@ class ResNetColorizer(ResNet):
         # features [BATCH * 4, HEIGHT(32), WIDTH(32), CHANNEL(64)]
         _, _, height, width, _ = images.shape
         images = tf.reshape(images, (-1, height, width, 1))
+        images = tf.cast(images, tf.float32)
+
         tf.summary.image('inputs/images', images, max_outputs=8)
 
         features = self.feature(images, input_data_format)

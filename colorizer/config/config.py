@@ -1,6 +1,4 @@
-"""
-Configure models and datasets/ data loader from .yaml file
-"""
+"""Configure models and datasets/ data loader from .yaml file."""
 import os
 import yaml
 import logging
@@ -14,9 +12,11 @@ LOGGER = logging.getLogger(__name__)
 
 class Config():
     """
-    Read configuration from .yaml file and create Config Singleton class object
+    Read configuration from yaml file and create Config Singleton class object.
+
     By default config.yaml in the root directory is read
     """
+
     _instance = None
 
     @staticmethod

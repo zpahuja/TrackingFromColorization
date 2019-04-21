@@ -1,6 +1,4 @@
-"""
-Get CPU/GPUs count and device spec
-"""
+"""Get CPU/GPUs count and device spec."""
 from __future__ import absolute_import
 
 import os
@@ -39,7 +37,8 @@ class Devices():
         if device in ('cpu', 'CPU'):
             device_spec = tf.DeviceSpec(device_type='CPU', device_index=0)
         else:
-            device_spec = tf.DeviceSpec(device_type=device['name'], device_index=GPU_INDEX)
+            device_spec = tf.DeviceSpec(
+                device_type=device['name'], device_index=GPU_INDEX)
             GPU_INDEX += 1
             GPU_INDEX %= device['count']
 

@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""ResNet model.
+"""ResNet class object.
+
 Related papers:
 https://arxiv.org/pdf/1603.05027v2.pdf
 https://arxiv.org/pdf/1512.03385v1.pdf
@@ -30,11 +31,13 @@ class ResNet():
     """ResNet model."""
 
     def __init__(self, is_training, data_format, batch_norm_decay, batch_norm_epsilon):
-        """ResNet constructor.
+        """
+        ResNet constructor.
+
         Args:
             is_training: if build training or inference model.
             data_format: the data_format used during computation.
-                                     one of 'channels_first' or 'channels_last'.
+                         one of 'channels_first' or 'channels_last'
         """
         self._batch_norm_decay = batch_norm_decay
         self._batch_norm_epsilon = batch_norm_epsilon
@@ -45,15 +48,9 @@ class ResNet():
     # def forward(self, x, input_data_format):
     #     raise NotImplementedError('forward() is implemented in ResNet sub classes')
 
-    def _residual_v1(self,
-                     x,
-                     kernel_size,
-                     in_filter,
-                     out_filter,
-                     stride,
+    def _residual_v1(self, x, kernel_size, in_filter, out_filter, stride,
                      activate_before_residual=False):
         """Residual unit with 2 sub layers, using Plan A for shortcut connection."""
-
         del activate_before_residual
         with tf.name_scope('residual_v1') as name_scope:
             orig_x = x
@@ -72,24 +69,20 @@ class ResNet():
                     orig_x = self._avg_pool(orig_x, stride, stride)
                     pad = (out_filter - in_filter) // 2
                     if self._data_format == 'channels_first':
-                        orig_x = tf.pad(orig_x, [[0, 0], [pad, pad], [0, 0], [0, 0]])
+                        orig_x = tf.pad(
+                            orig_x, [[0, 0], [pad, pad], [0, 0], [0, 0]])
                     else:
-                        orig_x = tf.pad(orig_x, [[0, 0], [0, 0], [0, 0], [pad, pad]])
+                        orig_x = tf.pad(
+                            orig_x, [[0, 0], [0, 0], [0, 0], [pad, pad]])
 
             x = self._relu(tf.add(x, orig_x))
 
             tf.logging.info('image after unit %s: %s', name_scope, x.get_shape())
             return x
 
-    def _residual_v2(self,
-                     x,
-                     kernel_size,
-                     in_filter,
-                     out_filter,
-                     stride,
+    def _residual_v2(self, x, kernel_size, in_filter, out_filter, stride,
                      activate_before_residual=False):
         """Residual unit with 2 sub layers with preactivation, plan A shortcut."""
-
         with tf.name_scope('residual_v2') as name_scope:
             if activate_before_residual:
                 x = self._batch_norm(x)
@@ -101,7 +94,6 @@ class ResNet():
                 x = self._relu(x)
 
             x = self._conv(x, kernel_size, out_filter, stride)
-
             x = self._batch_norm(x)
             x = self._relu(x)
             x = self._conv(x, kernel_size, out_filter, 1)
@@ -113,24 +105,20 @@ class ResNet():
                     pad = (out_filter - in_filter) // 2
                     orig_x = self._avg_pool(orig_x, stride, stride)
                     if self._data_format == 'channels_first':
-                        orig_x = tf.pad(orig_x, [[0, 0], [pad, pad], [0, 0], [0, 0]])
+                        orig_x = tf.pad(
+                            orig_x, [[0, 0], [pad, pad], [0, 0], [0, 0]])
                     else:
-                        orig_x = tf.pad(orig_x, [[0, 0], [0, 0], [0, 0], [pad, pad]])
+                        orig_x = tf.pad(
+                            orig_x, [[0, 0], [0, 0], [0, 0], [pad, pad]])
 
             x = tf.add(x, orig_x)
 
             tf.logging.info('image after unit %s: %s', name_scope, x.get_shape())
             return x
 
-    def _bottleneck_residual_v2(self,
-                                x,
-                                kernel_size,
-                                in_filter,
-                                out_filter,
-                                stride,
-                                activate_before_residual=False):
+    def _bottleneck_residual_v2(self, x, kernel_size, in_filter, out_filter,
+                                stride, activate_before_residual=False):
         """Bottleneck residual unit with 3 sub layers, plan B shortcut."""
-
         with tf.name_scope('bottle_residual_v2') as name_scope:
             if activate_before_residual:
                 x = self._batch_norm(x)
@@ -153,15 +141,15 @@ class ResNet():
             x = self._conv(x, 1, out_filter, 1, is_atrous=True)
 
             if in_filter != out_filter or stride > 1:
-                orig_x = self._conv(orig_x, 1, out_filter, stride, is_atrous=True)
+                orig_x = self._conv(orig_x, 1, out_filter,
+                                    stride, is_atrous=True)
             x = tf.add(x, orig_x)
 
             tf.logging.info('image after unit %s: %s', name_scope, x.get_shape())
             return x
 
     def _conv(self, x, kernel_size, filters, strides, is_atrous=False):
-        """Convolution."""
-
+        """2D Convolution."""
         if self._data_format == 'channels_first':
             in_channels = x.shape.as_list()[1]
         else:
@@ -173,10 +161,13 @@ class ResNet():
             pad_beg = pad // 2
             pad_end = pad - pad_beg
             if self._data_format == 'channels_first':
-                x = tf.pad(x, [[0, 0], [0, 0], [pad_beg, pad_end], [pad_beg, pad_end]])
+                x = tf.pad(
+                    x, [[0, 0], [0, 0], [pad_beg, pad_end], [pad_beg, pad_end]])
             else:
-                x = tf.pad(x, [[0, 0], [pad_beg, pad_end], [pad_beg, pad_end], [0, 0]])
+                x = tf.pad(x, [[0, 0], [pad_beg, pad_end],
+                               [pad_beg, pad_end], [0, 0]])
             padding = 'VALID'
+
         return tf.layers.conv2d(
             inputs=x,
             kernel_size=kernel_size,
@@ -185,7 +176,9 @@ class ResNet():
             padding=padding,
             use_bias=False,
             data_format=self._data_format,
-            kernel_initializer=tf.initializers.random_normal(mean=0.0, stddev=math.sqrt(2.0 / (kernel_size * kernel_size * in_channels)))
+            kernel_initializer=tf.initializers.random_normal(
+                mean=0.0,
+                stddev=math.sqrt(2 / (kernel_size * kernel_size * in_channels)))
         )
 
     def _batch_norm(self, x):
@@ -193,6 +186,7 @@ class ResNet():
             data_format = 'NCHW'
         else:
             data_format = 'NHWC'
+
         return tf.contrib.layers.batch_norm(
             x,
             decay=self._batch_norm_decay,
@@ -219,6 +213,7 @@ class ResNet():
             x = tf.layers.average_pooling2d(
                 x, pool_size, stride, 'SAME', data_format=self._data_format
             )
+
         tf.logging.info('image after unit %s: %s', name_scope, x.get_shape())
         return x
 
@@ -229,5 +224,6 @@ class ResNet():
                 x = tf.reduce_mean(x, [2, 3])
             else:
                 x = tf.reduce_mean(x, [1, 2])
+
         tf.logging.info('image after unit %s: %s', name_scope, x.get_shape())
         return x

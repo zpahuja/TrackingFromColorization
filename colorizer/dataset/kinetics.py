@@ -1,5 +1,6 @@
 """
 Read Kinetics video files and return iterator over frames for all videos.
+
 See also: __iter__() docstring
 """
 import os
@@ -15,9 +16,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 class Kinetics():
-    """
-    Get frames from Kinetics video dataset.
-    """
+    """Get frames from Kinetics video dataset."""
+
     def __init__(self, base_path, shuffle=False, num_frames=1, skips=(0,)):
         self.base_path = base_path
         self.shuffle = shuffle
@@ -38,9 +38,7 @@ class Kinetics():
 
     @property
     def names(self):
-        """
-        Get list of video filenames
-        """
+        """Get list of video filenames."""
         if self.shuffle:
             self.index = np.random.permutation(self.index)
         return [self.metas[idx]['key'] for idx in self.index]
@@ -57,9 +55,7 @@ class Kinetics():
         return self.__len__()
 
     def get_filepath(self, filename):
-        """
-        Get filepath given filename (without .mp4 extension)
-        """
+        """Get filepath given filename (without .mp4 extension)."""
         if filename not in self.keys:
             raise KeyError('File "%s.mp4" does not exist' % filename)
         filepath = os.path.join(self.base_path, 'processed', filename + '.mp4')
@@ -72,6 +68,7 @@ class Kinetics():
     def __iter__(self, num_frames=None, skips=None):
         """
         Get iterator containing frames from all video files in batches.
+
         :param num_frames: batch size
         :param skips: number of frames to skip
         :return: iterator of [batch size for each video, list of image frames]
@@ -104,6 +101,7 @@ class Kinetics():
                     break
 
                 images.append(image)
+
                 if len(images) == num_frames:
                     batch_index += 1
                     yield [batch_index, images]

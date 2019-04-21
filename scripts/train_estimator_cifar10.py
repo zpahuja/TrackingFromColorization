@@ -3,12 +3,13 @@ import sys
 import tensorflow as tf
 import tensorpack as tp
 import tensorpack.dataflow as df
-from colorizer.config import Config
-from colorizer.networks.classifier import Classifier
-from colorizer.networks.resnet_cifar10 import ResNetCifar10
 
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(base_dir)
+sys.path.append('.')
+sys.path.append('/home/nfs/zpahuja2/tracking_from_colorization')  # vision clus
+
+from colorizer.config import Config
+from colorizer.model.classifier import Classifier
+from colorizer.model.resnet_cifar10 import ResNetCifar10
 
 
 def get_input_fn(name, batch_size=32):
@@ -43,12 +44,12 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--config', type=str, default=None)
     args = parser.parse_args()
 
-    Config(args.config)
-    print(Config.get_instance())
+    cfg = Config(args.config) if args.config else Config()
+    print(cfg)
 
     input_functions = {
-        'train': get_input_fn('train', Config.get_instance()['mode']['train']['batch_size']),
-        'eval': get_input_fn('test', Config.get_instance()['mode']['eval']['batch_size'])
+        'train': get_input_fn('train', cfg['mode']['train']['batch_size']),
+        'eval': get_input_fn('test', cfg['mode']['eval']['batch_size'])
     }
 
     model_fn = Classifier.get('resnet', ResNetCifar10)
@@ -57,7 +58,7 @@ if __name__ == '__main__':
         save_summary_steps=10,
         session_config=None
     )
-    hparams = Config.get_instance()['hparams']
+    hparams = cfg['hparams']
     hparams['optimizer'] = tf.train.MomentumOptimizer(
         learning_rate=0.001,
         momentum=0.9

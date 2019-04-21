@@ -1,5 +1,6 @@
 """
 Video reader and writer.
+
 See Reader and Writer class docstrings
 """
 import os
@@ -14,6 +15,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def reader(path):
+    """Read video file agnostic to file type."""
     if os.path.isfile(path):
         return VideoReader(path)
     if os.path.isdir(path):
@@ -22,9 +24,7 @@ def reader(path):
 
 
 class VideoReader():
-    """
-    Iterable for video frames from mp4 file for Kinetics dataset.
-    """
+    """Iterable for video frames from mp4 file for Kinetics dataset."""
 
     def __init__(self, filepath):
         self.capture = cv2.VideoCapture(filepath)
@@ -39,9 +39,7 @@ class VideoReader():
 
 
 class ImageReader():
-    """
-    Read video frames from directory containing images for DAVIS dataset.
-    """
+    """Read video frames from directory containing images for DAVIS dataset."""
 
     def __init__(self, dirpath):
         filenames = glob.glob(os.path.join(dirpath, '*'))
@@ -50,27 +48,27 @@ class ImageReader():
 
     def __iter__(self):
         for i in range(len(self.filenames)):
+            fname = self.filenames[i]
             try:
-                image = cv2.imread(self.filenames[i], cv2.IMREAD_COLOR)
+                image = cv2.imread(fname, cv2.IMREAD_COLOR)
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 yield image
-            except:
-                LOGGER.warning('%s: %s (%s)', type(
-                    e), str(e), self.filenames[i])
+            except Exception as e:
+                LOGGER.warning('%s: %s (%s)', type(e), str(e), fname)
 
 
 def writer(path):
+    """Write video frames agnostic to output file format."""
     extension = os.path.splitext(path)[1]
 
     if extension == '.mp4':
         return VideoWriter(path)
     if extension == '.gif':
         return GifWriter(path)
-    if len(extension) == 0:
+    if not extension:
         return ImageWriter(path)
 
-    LOGGER.error(
-        'Writer does not support writing to %s file format' % extension)
+    LOGGER.error('Writer does not support %s file format', extension)
     raise NotImplementedError
 
 
