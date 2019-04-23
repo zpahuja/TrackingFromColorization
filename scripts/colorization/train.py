@@ -19,10 +19,6 @@ from colorizer.utils import Devices
 from colorizer.utils import ImageProcessor
 
 
-FILE_PATH = os.path.abspath(__file__)
-ROOT_PATH = os.path.dirname(os.path.dirname(os.path.dirname(FILE_PATH)))
-DEFAULT_CENTROIDS_PATH = os.path.join(
-    ROOT_PATH, 'out', 'centroids', 'centroids_16k_kinetics_10000samples.npy')
 LOGGER = logging.getLogger(__name__)
 
 
@@ -34,12 +30,12 @@ def get_cluster_labels(image, centroids):
         return np.linalg.norm(centroids - color, axis=1)
 
     labels = np.int32([np.argmin(distances(color, centroids))
-                      for color in pixel_colors])
+                       for color in pixel_colors])
 
     return labels.reshape((n_rows, n_cols, 1))
 
 
-def dataflow(centroids, num_refs=3, num_process=16, shuffle=True):
+def dataflow(centroids, num_refs=3, num_process=16, shuffle=False):
     """
     Compute graph to retrieve 3 reference and 1 target frames from Kinetics.
 
@@ -52,8 +48,8 @@ def dataflow(centroids, num_refs=3, num_process=16, shuffle=True):
 
     :return: (grayscale input, cluster indices for colorized output)
     """
-    cfg = Config.get_instance()
-    kinetics_dirpath = cfg['data_dir']['kinetics']
+    config = Config.get_instance()
+    kinetics_dirpath = config['data_dir']['kinetics']
 
     # get frame and 3 prior reference frames with certain number of skips
     data = Kinetics(kinetics_dirpath, num_frames=num_refs + 1,
@@ -98,7 +94,9 @@ def dataflow(centroids, num_refs=3, num_process=16, shuffle=True):
     data = df.MapData(data, lambda dp: [np.stack(
         dp[0] + dp[2], axis=0), np.stack(dp[1] + dp[3], axis=0)])
 
-    data = df.MapData(data, tuple)  # for tensorflow.data.dataset
+    # important for tensorflow.data.dataset
+    # does not do what it is supposed to do
+    data = df.MapData(data, tuple)
 
     # prefetch 256 datapoints
     data = df.MultiProcessPrefetchData(
@@ -108,11 +106,11 @@ def dataflow(centroids, num_refs=3, num_process=16, shuffle=True):
     return data
 
 
-def get_input_fn(name, centroids, batch_size=32, num_refs=3, num_process=16):
+def get_input_fn(name, centroids, batch_size=32, num_refs=3, num_process=16, shuffle=False):
     """Iterate over datapoints in dataflow in mini-batches."""
     _ = name
     data = dataflow(centroids, num_refs=num_refs,
-                    num_process=num_process, shuffle=False)
+                    num_process=num_process, shuffle=shuffle)
     data = df.MapData(data, tuple)
     data.reset_state()
 
@@ -129,40 +127,49 @@ def get_input_fn(name, centroids, batch_size=32, num_refs=3, num_process=16):
     return input_fn
 
 
-def main(args):
-    cfg = Config(args.config) if args.config else Config()
-    device_info = Devices.get_devices(gpu_ids=args.gpus)
+def main():
+    config = Config.get_instance()
+    cfg = config['colorization']['train']
+    device_info = Devices.get_devices(gpu_ids=cfg['gpus'])
     tf.logging.info('\nargs: %s\nconfig: %s\ndevice info: %s',
-                    args, cfg, device_info)
+                    args, config, device_info)
 
     # load centroids from results of clustering
-    with open(args.centroids, 'rb') as centroids_file:
+    with open(cfg['centroids'], 'rb') as centroids_file:
         centroids = np.load(centroids_file)
     num_colors = centroids.shape[0]
 
     input_functions = {
         'train': get_input_fn(
             'train', centroids,
-            cfg['mode']['train']['batch_size'],
-            num_refs=args.num_ref_frames,
-            num_process=args.num_process
+            cfg['batch_size'],
+            num_refs=cfg['reference_frames_count'],
+            num_process=cfg['num_process']
         ),
         'eval': get_input_fn(
             'test', centroids,
-            cfg['mode']['eval']['batch_size'],
-            num_refs=args.num_ref_frames,
-            num_process=max(1, args.num_process // 4)
+            cfg['batch_size'],
+            num_refs=cfg['reference_frames_count'],
+            num_process=max(1, cfg['num_process'] // 4)
         )
     }
 
-    cfg.clear()
+    hparams = config['colorization']['hparams']
+    hparams['optimizer'] = tf.train.AdamOptimizer(
+        learning_rate=cfg['learning_rate']
+    )
+    hparams = tf.contrib.training.HParams(**hparams)
+
+    config.clear()
 
     # configure ResNet colorizer model
     model_fn = model.Colorizer.get('resnet', model.ResNetColorizer, log_steps=1,
-                                   num_refs=args.num_ref_frames, num_colors=num_colors, predict_direction=args.direction)
+                                   num_refs=cfg['reference_frames_count'],
+                                   num_colors=num_colors,
+                                   predict_direction=cfg['direction'])
 
-    config = tf.estimator.RunConfig(
-        model_dir=args.model_dir,
+    tf_config = tf.estimator.RunConfig(
+        model_dir=cfg['model_dir'],
         keep_checkpoint_max=100,
         save_checkpoints_secs=None,
         save_checkpoints_steps=1000,
@@ -170,39 +177,37 @@ def main(args):
         session_config=None
     )
 
-    hparams = Config.get_instance()['hparams']
-    hparams['optimizer'] = tf.train.AdamOptimizer(
-        learning_rate=args.lr
-    )
-    hparams = tf.contrib.training.HParams(**hparams)
-
     estimator = tf.estimator.Estimator(
         model_fn=model_fn,
-        config=config,
+        config=tf_config,
         params=hparams
     )
 
-    for _ in range(args.epoch):
+    for _ in range(cfg['epoch']):
         estimator.train(input_fn=input_functions['train'], steps=1000)
         estimator.evaluate(input_fn=input_functions['eval'], steps=50)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--gpus', type=int, nargs='*', default=[0, 1, 2, 3])
-    parser.add_argument('--model-dir', type=str, default=None)
-    parser.add_argument('--centroids', type=str,
-                        default=DEFAULT_CENTROIDS_PATH)
-    parser.add_argument('--num-ref-frames', type=int, default=3)
-    parser.add_argument('--direction', type=str, default='backward',
-                        help='[forward|backward] default: backward')
-    parser.add_argument('--lr', type=float, default=0.0001)
-    parser.add_argument('--epoch', type=int, default=50)
     parser.add_argument('--num-process', type=int, default=16)
+    parser.add_argument('-g', '--gpus', type=int, nargs='*', default=[0])
+    parser.add_argument('-d', '--model-dir', type=str, default=None)
+    parser.add_argument('--centroids', type=str, default=None)
+    parser.add_argument('-f', '--reference-frames-count', type=int, default=None)
+    parser.add_argument('--direction', type=str, default=None, help='[forward|backward]')
+    parser.add_argument('--learning_rate', type=float, default=None)
+    parser.add_argument('-e', '--epoch', type=int, default=None)
     parser.add_argument('--config', type=str, default=None)
     args = parser.parse_args()
+
+    # update config from cli args
+    config = Config(args.config) if args.config else Config()
+    config['colorization']['train'].update({
+        key: val for key, val in vars(args).items() if val is not None
+    })
 
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '5'
     tf.logging.set_verbosity(tf.logging.INFO)
 
-    main(args)
+    main()

@@ -48,7 +48,7 @@ class Config():
         Config._instance = self
 
     def __str__(self):
-        return 'filepath: %s\nconf: %s' % (self.filepath, self.conf)
+        return 'filepath: %s,\nconfig: %s' % (self.filepath, self.conf)
 
     def __getitem__(self, key):
         return self.conf[key]
